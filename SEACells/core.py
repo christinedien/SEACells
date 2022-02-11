@@ -66,7 +66,8 @@ class SEACells:
         """
         Initialize B matrix which defines cells as SEACells. Selects waypoint_proportion from waypoint analysis,
         and the remainder by greedy selection.
-
+        
+        :param initial_pts: (tuple or array-like) intializing points to use for waypoints, format: (waypt_ix, all_ix) 
         :return: B - (array) n_datapoints x n_SEACells matrix which initial SEACell definitions
         """
         K = self.K
@@ -236,6 +237,12 @@ class SEACells:
         return centers
 
     def _computeA(self):
+        """
+        Initialize A matrix using distances from cells to initializing waypoints, scaled
+        by distance to cell's k/3 th nearest neighbor
+        
+        :return: A: (array) k*n matrix (dense) defining weights used for assigning cells to SEACells
+        """
         from sklearn.neighbors import NearestNeighbors
         from scipy.sparse import csr_matrix, find
         from sklearn.metrics import pairwise_distances
@@ -403,9 +410,11 @@ class SEACells:
         number of iterations or convergence has been achieved.
 
         Modifies ad.obs in place to add 'SEACell' labels to cells.
-
+        
         :param max_iter: (int) maximum number of iterations to update A and B matrices
         :param B0: (array) n_datapoints x n_SEACells initial guess of archetype matrix
+        :param randomA: (boolean) whether to initialze A matrix randomly
+        :param initial_pts: (tuple or array-like) intializing points to use for waypoints, format: (waypt_ix, all_ix)
         """
 
         if self.verbose:
@@ -504,7 +513,9 @@ class SEACells:
         :param n_iter: (int) maximum number of iterations to update A and B matrices
         :param waypoint_proportion: (float) proportion of SEACells to intialize using waypoint initializations
         :param B0: (array) n_datapoints x n_SEACells initial guess of archetype matrix
-        """
+	:param randomA: (boolean) whether to initialze A matrix randomly	
+        :param initial_pts: (tuple or array-like) intializing points to use for waypoints, format: (waypt_ix, all_ix)
+	"""
 
         if waypoint_proportion is not None:
             self.waypoint_proportion = waypoint_proportion
