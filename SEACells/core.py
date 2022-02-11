@@ -62,7 +62,7 @@ class SEACells:
 
         print
 
-    def _initialize_archetypes(self):
+    def _initialize_archetypes(self, initial_pts):
         """
         Initialize B matrix which defines cells as SEACells. Selects waypoint_proportion from waypoint analysis,
         and the remainder by greedy selection.
@@ -71,33 +71,38 @@ class SEACells:
         K = self.K
         n = K.shape[0]
         k = self.k
+        if initial_pts is not None:
+            waypt_ix = initial_pts[0]
+            all_ix = initial_pts[1]
+        else:
+            if self.waypoint_proportion > 0:
+                waypt_ix = self._get_waypoint_centers(k)
+                waypt_ix = np.random.choice(waypt_ix, int(len(waypt_ix) * self.waypoint_proportion), replace=False)
+                from_greedy = self.k - len(waypt_ix)
+                if self.verbose:
+                    print(f'Selecting {len(waypt_ix)} cells from waypoint initialization.')
 
-        if self.waypoint_proportion > 0:
-            waypt_ix = self._get_waypoint_centers(k)
-            waypt_ix = np.random.choice(waypt_ix, int(len(waypt_ix) * self.waypoint_proportion), replace=False)
-            from_greedy = self.k - len(waypt_ix)
+            else:
+                from_greedy = self.k
+
+            greedy_ix = self._get_greedy_centers(n_mcs=from_greedy + 10)
             if self.verbose:
-                print(f'Selecting {len(waypt_ix)} cells from waypoint initialization.')
+                print(f'Selecting {from_greedy} cells from greedy initialization.')
 
-        else:
-            from_greedy = self.k
+            if self.waypoint_proportion > 0:
+                all_ix = np.hstack([waypt_ix, greedy_ix])
+            else:
+                all_ix = np.hstack([greedy_ix])
 
-        greedy_ix = self._get_greedy_centers(n_mcs=from_greedy + 10)
-        if self.verbose:
-            print(f'Selecting {from_greedy} cells from greedy initialization.')
-
-        if self.waypoint_proportion > 0:
-            all_ix = np.hstack([waypt_ix, greedy_ix])
-        else:
-            all_ix = np.hstack([greedy_ix])
-
-        unique_ix, ind = np.unique(all_ix, return_index=True)
-        all_ix = unique_ix[np.argsort(ind)][:k]
+            unique_ix, ind = np.unique(all_ix, return_index=True)
+            all_ix = unique_ix[np.argsort(ind)][:k]
 
         B0 = np.zeros((n, k))
         idx1 = list(zip(all_ix, np.arange(k)))
         B0[tuple(zip(*idx1))] = 1
-
+        self.waypt_ix = waypt_ix
+        self.all_ix = all_ix
+        
         return B0
 
     def _get_waypoint_centers(self, n_waypts=None):
@@ -143,7 +148,8 @@ class SEACells:
         waypt_ix = dc_components.loc[waypoint_init]['iix'].values
         if self.verbose:
             print('Done.')
-
+        self.dm_res = dm_res
+        
         return waypt_ix
 
     def _get_greedy_centers(self, n_mcs=None):
@@ -230,6 +236,41 @@ class SEACells:
             centers[j] = int(p)
 
         return centers
+
+    def _computeA(self):
+        from sklearn.neighbors import NearestNeighbors
+        from scipy.sparse import csr_matrix, find
+        from sklearn.metrics import pairwise_distances
+
+        basis = self.ad.obsm[self.build_kernel_on]
+        N = basis.shape[0]
+
+        neigh = NearestNeighbors(n_neighbors=self.n_neighbors, metric='euclidean').fit(basis)
+        knn = neigh.kneighbors_graph(basis, mode='distance')
+        
+        # compute scaling factor
+        adaptive_k = int(np.floor(self.n_neighbors / 3))
+        adaptive_std = np.zeros(N)
+    
+        for k in np.arange(len(adaptive_std)):
+            sort_nbors = np.sort(knn.data[knn.indptr[k] : knn.indptr[k + 1]])
+            adaptive_std[k] = sort_nbors[adaptive_k - 1]
+        
+        # calculate pairwise distances
+        pw_dist = pairwise_distances(basis)
+
+        i, j, dists = find(pw_dist)
+
+        dists = dists / adaptive_std[j]
+
+        dist_mat = csr_matrix((np.exp(-dists), (i, j)), shape=[N, N])
+        
+        # make symmetrical
+        dist_mat = dist_mat + dist_mat.T
+
+        A = dist_mat[self.all_ix,:]
+             
+        return A
 
     def _updateA(self, B, A_prev):
         """
@@ -358,7 +399,7 @@ class SEACells:
         plt.show()
         plt.close()
 
-    def _fit(self, max_iter: int = 50, min_iter:int=10, B0=None):
+    def _fit(self, max_iter: int = 50, min_iter:int=10, B0=None, randomA=True, initial_pts=None):
         """
         Compute archetypes and loadings given kernel matrix K. Iteratively updates A and B matrices until maximum
         number of iterations or convergence has been achieved.
@@ -390,19 +431,24 @@ class SEACells:
                 B = B0
                 self.B0 = B0
             else:
-                B = self._initialize_archetypes()
+                B = self._initialize_archetypes(initial_pts)
                 self.B0 = B
         else:
             if self.verbose:
                 print('Using fixed B matrix as provided.')
             B = self.true_B
 
-        A = np.random.random((k, n))
-        A /= A.sum(0)
-        A = self._updateA(B, A)
+        if randomA:
+            print('Randomly initializing A matrix.')
+            A = np.random.random((k, n))
+            A = self._updateA(B, A)
+        else:
+            print('Initializing A matrix.')
+            A = self._computeA()
         
-        print('Randomly initialized A matrix.')
+        A /= A.sum(0)
 
+        
         # Create convergence threshold
         RSS = self.compute_RSS(A, B)
         self.RSS_iters.append(RSS)
@@ -414,6 +460,10 @@ class SEACells:
 
         converged = False
         n_iter = 0
+        mc_loc = {}
+        matricies = {}
+        matricies[0] = (A.copy(), B.copy())
+
         while (not converged and n_iter < max_iter) or n_iter < min_iter:
 
             n_iter += 1
@@ -443,6 +493,10 @@ class SEACells:
             self.A_ = A
             self.B_ = B
             n_SEACells = self.get_assignments()['SEACell'].unique().shape[0]
+            
+            print('Saving MC locations for iteration', n_iter)
+            mc_loc[n_iter] = self.get_assignments()['SEACell']
+            matricies[n_iter] = (A.copy(), B.copy())
 
         print(f'Converged after {n_iter} iterations.')
         self.A_ = A
@@ -452,9 +506,11 @@ class SEACells:
         # Label SEACells as well as assignment entropy as proxy for SEACell 'confidence'
         labels = self.get_assignments()
         self.ad.obs['SEACell'] = labels['SEACell']
+        
+        self.matricies = matricies 
+        self.mc_loc = mc_loc
 
-
-    def fit(self, n_iter: int = 8, waypoint_proportion: float = None, B0=None):
+    def fit(self, n_iter: int = 8, waypoint_proportion: float = None, B0=None,randomA=True, initial_pts=None):
         """
         Wrapper to fit model given kernel matrix and max number of iterations
 
@@ -465,7 +521,7 @@ class SEACells:
 
         if waypoint_proportion is not None:
             self.waypoint_proportion = waypoint_proportion
-        self._fit(n_iter, B0=B0)
+        self._fit(n_iter, B0=B0, randomA=randomA, initial_pts=initial_pts)
 
     def get_archetypes(self):
         """Return k x n matrix of archetypes"""
