@@ -7,6 +7,24 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
+def _create_ad(summ_matrix, atac_ad=None, n_bins_for_gc=50):
+    from scipy.sparse import csr_matrix
+
+    meta_ad = sc.AnnData(summ_matrix)
+    meta_ad.X = csr_matrix(meta_ad.X)
+    meta_ad.obs_names, meta_ad.var_names = summ_matrix.index.astype(str), summ_matrix.columns
+    
+    # If ATAC data, update ATAC meta ad with GC content information
+ 
+    if atac_ad is not None:
+        atac_ad.var['log_n_counts'] = np.ravel(np.log10(atac_ad.X.sum(axis=0)))
+        
+        meta_ad.var['GC_bin'] = np.digitize(atac_ad.var['GC'], np.linspace(0, 1, n_bins_for_gc))
+        meta_ad.var['counts_bin'] = np.digitize(atac_ad.var['log_n_counts'],
+                                                     np.linspace(atac_ad.var['log_n_counts'].min(),
+                                                                 atac_ad.var['log_n_counts'].max(), 
+                                                                 n_bins_for_gc))
+    return meta_ad
 
 def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_for_gc=50):
     """
@@ -14,7 +32,6 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
     @Manu: rna_ad.X, atac_ad.X must be raw counts?? Yes
 
     """
-    from scipy.sparse import csr_matrix
 
     # Subset of cells common to ATAC and RNA
     common_cells = atac_ad.obs_names.intersection(rna_ad.obs_names)
@@ -48,11 +65,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
             atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
 
     # ATAC - create metacell anndata
-    atac_meta_ad = sc.AnnData(summ_matrix)
-    atac_meta_ad.X = csr_matrix(atac_meta_ad.X)
-    atac_meta_ad.obs_names, atac_meta_ad.var_names = summ_matrix.index.astype(
-        str), summ_matrix.columns
-    atac_meta_ad = atac_meta_ad[:, atac_mod_ad.var_names]
+    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     sc.pp.normalize_per_cell(atac_meta_ad)
 
     print(' RNA')
@@ -69,11 +82,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
         summ_matrix.loc[m, :] = np.ravel(rna_mod_ad[cells, :].X.sum(axis=0))
 
     # RNA - create metacell matrix
-    rna_meta_ad = sc.AnnData(summ_matrix)
-    rna_meta_ad.X = csr_matrix(rna_meta_ad.X)
-    rna_meta_ad.obs_names, rna_meta_ad.var_names = summ_matrix.index.astype(
-        str), rna_meta_ad.var_names
-
+    rna_meta_ad = _create_ad(summ_matrix)
 
     # #################################################################################
     # Update ATAC meta ad with GC content information
@@ -87,14 +96,24 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
 
     return atac_meta_ad, rna_meta_ad
 
-def prepare_integrated_anndata(atac_ad, rna_ad, mapping,
-                               SEACell_label='SEACell', n_bins_for_gc=50):
+def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell', n_bins_for_gc=50):
 
-    from scipy.sparse import csr_matrix
-    # to leave the original, raw AnnDatas unmodified:
+    # Copy to leave the original, raw AnnDatas unmodified:
     atac_mod_ad = atac_ad.copy()
     rna_mod_ad = rna_ad.copy()
+    
+    print('Normalizing data...')
+
+    # RNA - Normalize
+    sc.pp.normalize_total(rna_mod_ad)
+    sc.pp.log1p(rna_mod_ad)
    
+    # ATAC - Normalize using TFIDF
+    from sklearn.feature_extraction.text import TfidfTransformer
+    mat = atac_mod_ad.X.astype(int)
+    tfidf = TfidfTransformer().fit(mat)
+    atac_mod_ad.layers['TFIDF'] = tfidf.transform(mat)
+ 
     # #################################################################################
     # Generate metacell matrices
     # Since the Mapping was made off of the RNA metacells, there may be dupliated ATAC
@@ -105,12 +124,7 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping,
     
     print(' RNA')
    
-    # RNA - Normalize
-    sc.pp.normalize_total(rna_mod_ad)
-    sc.pp.log1p(rna_mod_ad)
-
     # RNA - Summarize by metacells
-    # Summary matrix
     rna_metacells = rna_mod_ad.obs[SEACell_label].astype(str).unique()
     rna_metacells = rna_metacells[rna_mod_ad.obs[SEACell_label].value_counts()[rna_metacells] > 1]
 
@@ -120,10 +134,8 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping,
     mapping['common'] = np.arange(len(mapping))
     mapping['common'] = 'metacell ' + mapping['common'].astype(str)
     
-    print(len(mapping))
-    
+    # Summary matrix 
     summ_matrix = pd.DataFrame(0.0, index=mapping['common'], columns=rna_mod_ad.var_names)
-
     for m in tqdm(summ_matrix.index):
         rna_meta = mapping.index[mapping['common'] == m][0]
         
@@ -131,22 +143,12 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping,
         summ_matrix.loc[m, :] = np.ravel(rna_mod_ad[cells, :].X.sum(axis=0))
 
     # RNA - create metacell matrix
-    rna_meta_ad = sc.AnnData(summ_matrix)
-    rna_meta_ad.X = csr_matrix(rna_meta_ad.X)
-    rna_meta_ad.obs_names, rna_meta_ad.var_names = summ_matrix.index.astype(str), rna_meta_ad.var_names
+    rna_meta_ad = _create_ad(summ_matrix)
     rna_meta_ad.obs['original_rna'] = rna_metacells
-    
     
     print(' ATAC')
 
-    # ATAC - Normalize using TFIDF
-    from sklearn.feature_extraction.text import TfidfTransformer
-    mat = atac_mod_ad.X.astype(int)
-    tfidf = TfidfTransformer().fit(mat)
-    atac_mod_ad.layers['TFIDF'] = tfidf.transform(mat)
-
     # ATAC - Summarize by metacells
-
     # Summary matrix
     summ_matrix = pd.DataFrame(0.0, index=mapping['common'], columns=atac_mod_ad.var_names)
     for m in tqdm(summ_matrix.index):
@@ -155,23 +157,10 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping,
         summ_matrix.loc[m, :] = np.ravel(atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
 
     # ATAC - create metacell anndata
-    atac_meta_ad = sc.AnnData(summ_matrix)
-    atac_meta_ad.X = csr_matrix(atac_meta_ad.X)
-    atac_meta_ad.obs_names, atac_meta_ad.var_names = summ_matrix.index.astype(str), summ_matrix.columns
+    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     atac_meta_ad.obs['original_atac'] = mapping['atac'].values
     
     sc.pp.normalize_total(atac_meta_ad)
-
-
-    # #################################################################################
-    # Update ATAC meta ad with GC content information
-    atac_mod_ad.var['log_n_counts'] = np.ravel(
-        np.log10(atac_mod_ad.X.sum(axis=0)))
-    atac_meta_ad.var['GC_bin'] = np.digitize(
-        atac_mod_ad.var['GC'], np.linspace(0, 1, n_bins_for_gc))
-    atac_meta_ad.var['counts_bin'] = np.digitize(atac_mod_ad.var['log_n_counts'],
-                                                 np.linspace(atac_mod_ad.var['log_n_counts'].min(),
-                                                             atac_mod_ad.var['log_n_counts'].max(), n_bins_for_gc))
 
     return rna_meta_ad, atac_meta_ad
 
