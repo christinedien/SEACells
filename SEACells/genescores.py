@@ -30,9 +30,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
     """
     todo: Documentation
     @Manu: rna_ad.X, atac_ad.X must be raw counts?? Yes
-
     """
-    from scipy.sparse import csr_matrix
 
     # Subset of cells common to ATAC and RNA
     common_cells = atac_ad.obs_names.intersection(rna_ad.obs_names)
@@ -66,11 +64,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
             atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
 
     # ATAC - create metacell anndata
-    atac_meta_ad = sc.AnnData(summ_matrix)
-    atac_meta_ad.X = csr_matrix(atac_meta_ad.X)
-    atac_meta_ad.obs_names, atac_meta_ad.var_names = summ_matrix.index.astype(
-        str), summ_matrix.columns
-    atac_meta_ad = atac_meta_ad[:, atac_mod_ad.var_names]
+    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     sc.pp.normalize_per_cell(atac_meta_ad)
 
     print(' RNA')
@@ -87,21 +81,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
         summ_matrix.loc[m, :] = np.ravel(rna_mod_ad[cells, :].X.sum(axis=0))
 
     # RNA - create metacell matrix
-    rna_meta_ad = sc.AnnData(summ_matrix)
-    rna_meta_ad.X = csr_matrix(rna_meta_ad.X)
-    rna_meta_ad.obs_names, rna_meta_ad.var_names = summ_matrix.index.astype(
-        str), rna_meta_ad.var_names
-
-
-    # #################################################################################
-    # Update ATAC meta ad with GC content information
-    atac_mod_ad.var['log_n_counts'] = np.ravel(
-        np.log10(atac_mod_ad.X.sum(axis=0)))
-    atac_meta_ad.var['GC_bin'] = np.digitize(
-        atac_mod_ad.var['GC'], np.linspace(0, 1, n_bins_for_gc))
-    atac_meta_ad.var['counts_bin'] = np.digitize(atac_mod_ad.var['log_n_counts'],
-                                                 np.linspace(atac_mod_ad.var['log_n_counts'].min(),
-                                                             atac_mod_ad.var['log_n_counts'].max(), n_bins_for_gc))
+    rna_meta_ad = _create_ad(summ_matrix)
 
     return atac_meta_ad, rna_meta_ad
 
