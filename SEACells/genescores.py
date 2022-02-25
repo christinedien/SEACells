@@ -84,16 +84,6 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
     # RNA - create metacell matrix
     rna_meta_ad = _create_ad(summ_matrix)
 
-    # #################################################################################
-    # Update ATAC meta ad with GC content information
-    atac_mod_ad.var['log_n_counts'] = np.ravel(
-        np.log10(atac_mod_ad.X.sum(axis=0)))
-    atac_meta_ad.var['GC_bin'] = np.digitize(
-        atac_mod_ad.var['GC'], np.linspace(0, 1, n_bins_for_gc))
-    atac_meta_ad.var['counts_bin'] = np.digitize(atac_mod_ad.var['log_n_counts'],
-                                                 np.linspace(atac_mod_ad.var['log_n_counts'].min(),
-                                                             atac_mod_ad.var['log_n_counts'].max(), n_bins_for_gc))
-
     return atac_meta_ad, rna_meta_ad
 
 def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell', n_bins_for_gc=50):
