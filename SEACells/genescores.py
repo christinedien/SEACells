@@ -105,6 +105,73 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
 
     return atac_meta_ad, rna_meta_ad
 
+def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell', n_bins_for_gc=50):
+
+    # Copy to leave the original, raw AnnDatas unmodified:
+    atac_mod_ad = atac_ad.copy()
+    rna_mod_ad = rna_ad.copy()
+    
+    print('Normalizing data...')
+
+    # RNA - Normalize
+    sc.pp.normalize_total(rna_mod_ad)
+    sc.pp.log1p(rna_mod_ad)
+   
+    # ATAC - Normalize using TFIDF
+    from sklearn.feature_extraction.text import TfidfTransformer
+    mat = atac_mod_ad.X.astype(int)
+    tfidf = TfidfTransformer().fit(mat)
+    atac_mod_ad.layers['TFIDF'] = tfidf.transform(mat)
+ 
+    # #################################################################################
+    # Generate metacell matrices
+    # Since the Mapping was made off of the RNA metacells, there may be dupliated ATAC
+    #    metacells. For this reason, the RNA metacells will be used to define the pairs
+    #    of metacells and their common name
+    
+    print('Generating Metacell matrices...')
+    
+    print(' RNA')
+   
+    # RNA - Summarize by metacells
+    rna_metacells = rna_mod_ad.obs[SEACell_label].astype(str).unique()
+    rna_metacells = rna_metacells[rna_mod_ad.obs[SEACell_label].value_counts()[rna_metacells] > 1]
+
+    mapping = mapping.loc[rna_metacells]
+    
+    # Create common metacell name
+    mapping['common'] = np.arange(len(mapping))
+    mapping['common'] = 'metacell ' + mapping['common'].astype(str)
+    
+    # Summary matrix 
+    summ_matrix = pd.DataFrame(0.0, index=mapping['common'], columns=rna_mod_ad.var_names)
+    for m in tqdm(summ_matrix.index):
+        rna_meta = mapping.index[mapping['common'] == m][0]
+        
+        cells = rna_mod_ad.obs_names[rna_mod_ad.obs[SEACell_label] == rna_meta]
+        summ_matrix.loc[m, :] = np.ravel(rna_mod_ad[cells, :].X.sum(axis=0))
+
+    # RNA - create metacell matrix
+    rna_meta_ad = _create_ad(summ_matrix)
+    rna_meta_ad.obs['original_rna'] = rna_metacells
+    
+    print(' ATAC')
+
+    # ATAC - Summarize by metacells
+    # Summary matrix
+    summ_matrix = pd.DataFrame(0.0, index=mapping['common'], columns=atac_mod_ad.var_names)
+    for m in tqdm(summ_matrix.index):
+        atac_metacell = mapping.loc[mapping['common']== m, 'atac'].item()
+        cells = atac_mod_ad.obs_names[atac_mod_ad.obs[SEACell_label] == atac_metacell]
+        summ_matrix.loc[m, :] = np.ravel(atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
+
+    # ATAC - create metacell anndata
+    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
+    atac_meta_ad.obs['original_atac'] = mapping['atac'].values
+    
+    sc.pp.normalize_total(atac_meta_ad)
+
+    return atac_meta_ad, rna_meta_ad
 
 def _pyranges_from_strings(pos_list):
     """
