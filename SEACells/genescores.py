@@ -7,6 +7,24 @@ import numpy as np
 import pandas as pd
 import scanpy as sc
 
+def _create_ad(summ_matrix, atac_ad=None, n_bins_for_gc=50):
+    from scipy.sparse import csr_matrix
+
+    meta_ad = sc.AnnData(summ_matrix)
+    meta_ad.X = csr_matrix(meta_ad.X)
+    meta_ad.obs_names, meta_ad.var_names = summ_matrix.index.astype(str), summ_matrix.columns
+    
+    # If ATAC data, update ATAC meta ad with GC content information
+ 
+    if atac_ad is not None:
+        atac_ad.var['log_n_counts'] = np.ravel(np.log10(atac_ad.X.sum(axis=0)))
+        
+        meta_ad.var['GC_bin'] = np.digitize(atac_ad.var['GC'], np.linspace(0, 1, n_bins_for_gc))
+        meta_ad.var['counts_bin'] = np.digitize(atac_ad.var['log_n_counts'],
+                                                     np.linspace(atac_ad.var['log_n_counts'].min(),
+                                                                 atac_ad.var['log_n_counts'].max(), 
+                                                                 n_bins_for_gc))
+    return meta_ad
 
 def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_for_gc=50):
     """
