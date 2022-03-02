@@ -291,32 +291,31 @@ def get_gene_peak_correlations(atac_meta_ad,
     else:
         use_genes = gene_set
     from joblib import Parallel, delayed
-    gene_peak_correlations = Parallel(n_jobs=n_jobs)(delayed(_peaks_correlations_per_gene)(gene,
-                                                                                      atac_exprs,
-                                                                                      rna_exprs,
-                                                                                      atac_meta_ad,
-                                                                                      peaks_pr,
-                                                                                      transcripts,
-                                                                                      span)
-                                                for gene in tqdm(use_genes))
+    
+    gene_peak_correlations = Parallel(n_jobs=n_jobs)(
+                                delayed(_peaks_correlations_per_gene)(gene, atac_exprs, rna_exprs,
+                                                                      atac_meta_ad, peaks_pr,
+                                                                      transcripts, span) for gene in tqdm(use_genes))
     gene_peak_correlations = pd.Series(gene_peak_correlations, index=use_genes)
     return gene_peak_correlations
 
 
-def get_gene_peak_assocations(gene_peak_correlations, pval_cutoff=1e-1, cor_cutoff=0.1):
+def get_gene_peak_associations(gene_peak_correlations, min_corr=0.1, max_corr=1.0, 
+                               min_pval=0.0, max_pval=0.1, incl='both'):
     """
     TODO: Documentation
 
     """
-    peak_counts = pd.Series(0, index=gene_peak_correlations.index)
+    sig_peaks = pd.Series(0, index=gene_peak_correlations.index)
     for gene in tqdm(peak_counts.index):
         df = gene_peak_correlations[gene]
         if type(df) is int:
             continue
-        gene_peaks = df.index[(df['pval'] < pval_cutoff) & (df['cor'] > cor_cutoff)]
-        peak_counts[gene] = len(gene_peaks)
+        gene_peaks = df.index[(df['pval'].between(min_pval, max_pval,inclusive=incl) & (
+                               df['cor'].between(min_corr, max_corr, inclusive=incl)].tolist()
+        sig_peaks[gene] = gene_peaks
 
-    return peak_counts
+    return sig_peaks
 
 
 def get_gene_scores(atac_meta_ad, gene_peak_correlations, pval_cutoff=1e-1, cor_cutoff=0.1):
