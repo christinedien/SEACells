@@ -253,9 +253,12 @@ def _peaks_correlations_per_gene(gene,
 
         m = np.mean(rand_cors)
         v = np.std(rand_cors)
-
-        from scipy.stats import norm
-        df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
+        
+        if v != 0:
+            from scipy.stats import norm
+            df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
+        else:
+            df.loc[p, 'pval'] = 1
 
     return df
 
