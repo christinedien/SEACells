@@ -307,7 +307,7 @@ def get_gene_peak_associations(gene_peak_correlations, min_corr=0.1, max_corr=1.
 
     """
     sig_peaks = pd.Series(0, index=gene_peak_correlations.index)
-    for gene in tqdm(peak_counts.index):
+    for gene in tqdm(sig_peaks.index):
         df = gene_peak_correlations[gene]
         if type(df) is int:
             continue
