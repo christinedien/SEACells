@@ -300,7 +300,8 @@ def get_gene_peak_correlations(atac_meta_ad,
     return gene_peak_correlations
 
 
-def get_gene_peak_associations(gene_peak_correlations, min_corr=0.1, max_corr=1.0, min_pval=0.0, max_pval=0.1, incl='both'):
+def get_gene_peak_associations(gene_peak_correlations, min_corr=0.1, max_corr=1.0,
+                               min_pval=0.0, max_pval=0.1, incl='both'):
     """
     TODO: Documentation
 
@@ -310,8 +311,8 @@ def get_gene_peak_associations(gene_peak_correlations, min_corr=0.1, max_corr=1.
         df = gene_peak_correlations[gene]
         if type(df) is int:
             continue
-        gene_peaks = df.index[(df['pval'].between(min_pval, max_pval,inclusive=incl) & (
-                               df['cor'].between(min_corr, max_corr, inclusive=incl)].tolist()
+        gene_peaks = df.index[(df['pval'].between(min_pval, max_pval,inclusive=incl)) & (
+                               df['cor'].between(min_corr, max_corr, inclusive=incl))].tolist()
         sig_peaks[gene] = gene_peaks
 
     return sig_peaks
