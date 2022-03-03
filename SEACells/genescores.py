@@ -229,6 +229,8 @@ def _peaks_correlations_per_gene(gene,
     # Random background
     df = pd.DataFrame(1.0, index=cors.index, columns=['cor', 'pval'])
     df['cor'] = cors
+    
+    from scipy.stats import norm
     for p in df.index:
         try:
             # Try random sampling without replacement
@@ -253,9 +255,11 @@ def _peaks_correlations_per_gene(gene,
         m = np.mean(rand_cors)
         v = np.std(rand_cors)
 
-        from scipy.stats import norm
-        df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
-
+        # If the standard deviation is zero, set a p-value of 1
+        if v != 0:
+            df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
+        else:
+            df.loc[p, 'pval'] = 1
     return df
 
 
@@ -298,6 +302,7 @@ def get_gene_peak_correlations(atac_meta_ad,
     gene_peak_correlations = pd.Series(gene_peak_correlations, index=use_genes)
     return gene_peak_correlations
 
+
 def _get_sig_peaks(df, min_corr=-1.0, max_corr=1.0,
                    min_pval=0.0, max_pval=0.1, incl='both'):
     """
@@ -307,6 +312,7 @@ def _get_sig_peaks(df, min_corr=-1.0, max_corr=1.0,
                           df['cor'].between(min_corr, max_corr, inclusive=incl))].tolist()
 
     return sig_peaks
+
 
 def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
                     min_pval=0.0, max_pval=0.1, incl='both', return_peaks=False):
@@ -327,6 +333,7 @@ def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
             peak_counts[gene] = len(sig_peaks)
     
     return peak_counts
+
 
 def get_gene_scores(atac_meta_ad, gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
                     min_pval=0.0, max_pval=0.1, incl='both'):
