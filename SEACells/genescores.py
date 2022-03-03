@@ -300,28 +300,40 @@ def get_gene_peak_correlations(atac_meta_ad,
     return gene_peak_correlations
 
 
-def get_gene_peak_associations(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
-                               min_pval=0.0, max_pval=0.1, incl='both'):
+def _get_sig_peaks(df, min_corr=-1.0, max_corr=1.0,
+                   min_pval=0.0, max_pval=0.1, incl='both'):
     """
     TODO: Documentation
 
     """
-    sig_peaks = pd.Series(0, index=gene_peak_correlations.index)
-    for gene in tqdm(sig_peaks.index):
-        df = gene_peak_correlations[gene]
-        if type(df) is int:
-            continue
-        gene_peaks = df.index[(df['pval'].between(min_pval, max_pval,inclusive=incl)) & (
-                               df['cor'].between(min_corr, max_corr, inclusive=incl))].tolist()
-        if len(gene_peaks) == 0:
-            sig_peaks[gene] = 0
-        else:
-            sig_peaks[gene] = gene_peaks
+    sig_peaks = df.index[(df['pval'].between(min_pval, max_pval,inclusive=incl)) & (
+                          df['cor'].between(min_corr, max_corr, inclusive=incl))].tolist()
 
     return sig_peaks
 
+def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
+                    min_pval=0.0, max_pval=0.1, incl='both'):
+    """
+    TODO: Documentation
 
-def get_gene_scores(atac_meta_ad, gene_peak_correlations, pval_cutoff=1e-1, cor_cutoff=0.1):
+    """
+    peak_count = pd.Series(0, index=gene_peak_correlations.index)
+    for gene in tqdm(peak_count.index):
+        df = gene_peak_correlations[gene]
+        if type(df) is int:
+            continue
+
+        sig_peaks = _get_sig_peaks(df, min_corr, max_corr, min_pval, max_pval, incl)
+        
+	if return_peaks and len(sig_peaks) != 0:
+	    peak_counts[gene] = sig_peaks
+	else:
+            peak_counts[gene] = len(sig_peaks)
+    
+    return peak_counts
+
+def get_gene_scores(atac_meta_ad, gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
+                    min_pval=0.0, max_pval=0.1, incl='both'):
     """
     TODO: Documentation
 
@@ -331,14 +343,13 @@ def get_gene_scores(atac_meta_ad, gene_peak_correlations, pval_cutoff=1e-1, cor_
     Gene scores are computed as the aggregate accessibility of all peaks associated with a gene.
     See .get_gene_peak_correlations() for details on how gene-peak associations are computed.
     """
-    gene_scores = pd.DataFrame(
-        0.0, index=atac_meta_ad.obs_names, columns=gene_peak_correlations.index)
+    gene_scores = pd.DataFrame(0.0, index=atac_meta_ad.obs_names, columns=gene_peak_correlations.index)
 
     for gene in tqdm(gene_scores.columns):
         df = gene_peak_correlations[gene]
         if type(df) is int:
             continue
-        gene_peaks = df.index[(df['pval'] < pval_cutoff) & (df['cor'] > cor_cutoff)]
+        gene_peaks = _get_sig_peaks(df, min_corr, max_corr, min_pval, max_pval, incl)
         gene_scores[gene] = np.ravel(np.dot(atac_meta_ad[:, gene_peaks].X.todense(),
                                             df.loc[gene_peaks, 'cor']))
     gene_scores = gene_scores.loc[:, (gene_scores.sum() >= 0)]
