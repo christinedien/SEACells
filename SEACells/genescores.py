@@ -317,8 +317,8 @@ def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
     TODO: Documentation
 
     """
-    peak_count = pd.Series(0, index=gene_peak_correlations.index)
-    for gene in tqdm(peak_count.index):
+    peak_counts = pd.Series(0, index=gene_peak_correlations.index)
+    for gene in tqdm(peak_counts.index):
         df = gene_peak_correlations[gene]
         if type(df) is int:
             continue
