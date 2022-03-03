@@ -325,9 +325,9 @@ def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
 
         sig_peaks = _get_sig_peaks(df, min_corr, max_corr, min_pval, max_pval, incl)
         
-	if return_peaks and (len(sig_peaks) != 0):
-	    peak_counts[gene] = sig_peaks
-	else:
+        if return_peaks and (len(sig_peaks) != 0):
+            peak_counts[gene] = sig_peaks
+        else:
             peak_counts[gene] = len(sig_peaks)
     
     return peak_counts
