@@ -149,7 +149,7 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell'
     # ATAC - create metacell anndata
     atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     atac_meta_ad.obs['original_atac'] = mapping['atac'].values
-    
+    sc.pp.filter_genes(atac_meta_ad, min_cells=1)
     sc.pp.normalize_total(atac_meta_ad)
 
     return rna_meta_ad, atac_meta_ad
@@ -230,6 +230,8 @@ def _peaks_correlations_per_gene(gene,
     # Random background
     df = pd.DataFrame(1.0, index=cors.index, columns=['cor', 'pval'])
     df['cor'] = cors
+
+    from scipy.stats import norm
     for p in df.index:
         try:
             # Try random sampling without replacement
@@ -240,26 +242,29 @@ def _peaks_correlations_per_gene(gene,
             rand_peaks = np.random.choice(atac_meta_ad.var_names[(atac_meta_ad.var['GC_bin'] == atac_meta_ad.var['GC_bin'][p]) &
                                                                  (atac_meta_ad.var['counts_bin'] == atac_meta_ad.var['counts_bin'][
                                                                      p])], n_rand_sample, True)
-
+        
         if type(atac_exprs) is sc.AnnData:
             X = pd.DataFrame(atac_exprs[:, rand_peaks].X.todense().T)
         else:
             X = atac_exprs.loc[:, rand_peaks].T
-
-        rand_cors = 1 - np.ravel(pairwise_distances(np.apply_along_axis(rankdata, 1, X.values),
+        
+        # subset to peaks that have variation across cells:
+        X = X.iloc[np.where(np.std(X.values, axis=1) !=0)]
+        
+        if X.shape[0] != 0:
+            rand_cors = 1 - np.ravel(pairwise_distances(np.apply_along_axis(rankdata, 1, X.values),
                                                     rankdata(rna_exprs[gene].T.values).reshape(
                                                         1, -1),
                                                     metric='correlation'))
 
-        m = np.mean(rand_cors)
-        v = np.std(rand_cors)
+            m = np.mean(rand_cors)
+            v = np.std(rand_cors)
+            if np.isnan(v):
+                print(np.std(X.values, axis=1))
+                print(rand_cors)
+            if v != 0:
+                df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
         
-        if v != 0:
-            from scipy.stats import norm
-            df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
-        else:
-            df.loc[p, 'pval'] = 1
-
     return df
 
 
