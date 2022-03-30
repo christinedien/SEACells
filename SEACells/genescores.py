@@ -262,7 +262,7 @@ def _peaks_correlations_per_gene(gene,
 
             # If the standard deviation is zero, set a p-value of 1
             if v != 0:
-                df.loc[p, 'pval'] = 1 - norm.cdf(cors[p], m, v)
+                df.loc[p, 'pval'] = 2 * (norm.cdf(cors[p], m, v))
     return df
 
 
