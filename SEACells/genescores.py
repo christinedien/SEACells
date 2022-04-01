@@ -72,6 +72,11 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
         summ_matrix.loc[m, :] = np.ravel(
             atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
 
+    # Summarize SVD representation
+    svd = pd.DataFrame(atac_mod_ad.obsm['X_svd'], index=atac_mod_ad.obs_names)
+    summ_svd = svd.groupby(atac_omod_ad.obs[SEACell_label]).mean()
+    atac_meta_ad.obsm['X_svd'] = summ_svd.loc[atac_meta_ad.obs_names, :].values
+
     # ATAC - create metacell anndata
     atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     sc.pp.normalize_per_cell(atac_meta_ad)
@@ -157,6 +162,11 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell'
     # ATAC - create metacell anndata
     atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
     atac_meta_ad.obs['original_atac'] = mapping['atac'].values
+    
+    # Add summarized X_svd representation
+    svd = pd.DataFrame(atac_mod_ad.obsm['X_svd'], index=atac_mod_ad.obs_names)
+    summ_svd = svd.groupby(atac_mod_ad.obs[SEACell_label]).mean()
+    atac_meta_ad.obsm['X_svd'] = summ_svd.loc[atac_meta_ad.obs['original_atac'], :].values
     
     # remove peaks with zero counts
     sc.pp.filter_genes(atac_meta_ad, min_cells=1) 
