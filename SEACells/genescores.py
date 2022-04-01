@@ -28,8 +28,17 @@ def _create_ad(summ_matrix, atac_ad=None, n_bins_for_gc=50):
 
 def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_for_gc=50):
     """
-    todo: Documentation
-    @Manu: rna_ad.X, atac_ad.X must be raw counts?? Yes
+    Function to create metacell Anndata objects from single-cell Anndata objects
+
+    :param atac_ad: (Anndata) ATAC Anndata object with raw peak counts in `X`. These anndata objects should be constructed 
+     using the example notebook available in 
+    :param rna_ad: (Anndata) RNA Anndata object with raw gene expression counts in `X`. Note: RNA and ATAC anndata objects 
+     should contain the same set of cells
+    :param SEACell_label: (str) `atac_ad.obs` field for constructing metacell matrices. Same field will be used for 
+      summarizing RNA and ATAC metacells. 
+    :param n_bins_gc: (int) Number of bins for creating GC bins of ATAC peaks.
+
+    :return: ATAC metacell Anndata object and RNA metacell Anndata object
     """
 
     # Subset of cells common to ATAC and RNA
@@ -157,7 +166,7 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell'
 
 def _pyranges_from_strings(pos_list):
     """
-    TODO: Documentation
+    Function to create pyranges for a `pd.Series` of strings
     """
     # Chromosome and positions
     chr = pos_list.str.split(':').str.get(0)
@@ -173,7 +182,7 @@ def _pyranges_from_strings(pos_list):
 
 def _pyranges_to_strings(peaks):
     """
-    TODO: Documentation
+    Function to convert pyranges to `pd.Series` of strings of format 'chr:start-end'
     """
     # Chromosome and positions
     chr = peaks.Chromosome.astype(str).values
@@ -187,6 +196,9 @@ def _pyranges_to_strings(peaks):
 
 
 def load_transcripts(path_to_gtf):
+    """
+    Load transcripts from GTF File. `chr` is preprended to each entry
+    """
     gtf = pr.read_gtf(path_to_gtf)
     gtf.Chromosome = 'chr' + gtf.Chromosome.astype(str)
     transcripts = gtf[gtf.Feature == 'transcript']
@@ -273,8 +285,16 @@ def get_gene_peak_correlations(atac_meta_ad,
                                n_jobs=1,
                                gene_set=None):
     """
-    TODO: Documentation
+    Function to compute  correlations between gene expression and peak accessibility
 
+    :param atac_meta_ad: (Anndata) ATAC metacell Anndata created using `prepare_multiome_anndata`
+    :param rna_meta_ad: (Anndata) RNA metacell Anndata created using `prepare_multiome_anndata`
+    :param path_to_gtf: (str) Path to ENSEMBL GTF file
+    :param span: (int) Genomic window around the gene body to identify for which correlations with expression are computed
+    :param n_jobs: (int) Number of jobs for parallel processing
+    :param gene_set: (pd.Series) Subset of genes for which to compute correlations. All genes are used by default
+
+    :return: `pd.Series` with a dataframe of correlation and p-value for each gene. Note that p-value is one-sided assuming positive correlations
     """
 
     # #################################################################################
@@ -320,7 +340,11 @@ def _get_sig_peaks(df, min_corr=-1.0, max_corr=1.0,
 def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
                     min_pval=0.0, max_pval=0.1, incl='both', return_peaks=False):
     """
-    TODO: Documentation
+    Determine the number of significantly correlated peaks per gene
+
+    :param gene_peak_correlations: (pd.Series) Output of `get_gene_peak_correlations` function
+   
+    :return: `pd.Series` with number of significantly positive correlated peaks with each gene
     """
     peak_counts = pd.Series(0, index=gene_peak_correlations.index)
     for gene in tqdm(peak_counts.index):
@@ -341,12 +365,15 @@ def get_peak_counts(gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
 def get_gene_scores(atac_meta_ad, gene_peak_correlations, min_corr=-1.0, max_corr=1.0,
                     min_pval=0.0, max_pval=0.1, incl='both'):
     """
-    TODO: Documentation
-    """
-    """
-    # Compute the aggregate accessibility of all peaks associated with each gene
-    Gene scores are computed as the aggregate accessibility of all peaks associated with a gene.
-    See .get_gene_peak_correlations() for details on how gene-peak associations are computed.
+    Compute the aggregate accessibility of all peaks associated with each gene. G
+    ene scores are computed as the aggregate accessibility of all the signficantly correlated peaks associated with a gene.
+
+    :param atac_meta_ad: (Anndata) ATAC metacell Anndata created using `prepare_multiome_anndata`
+    :param gene_peak_correlations: (pd.Series) Output of `get_gene_peak_correlations` function
+    :param p_val_cutoff: (float) Nominal p-value cutoff for test of significance of correlation
+    :param cor_cutoff: (float) Correlation cutoff
+
+    :return: `pd.DataFrame` of ATAC gene scores (cells X genes)
     """
     gene_scores = pd.DataFrame(0.0, index=atac_meta_ad.obs_names, columns=gene_peak_correlations.index)
 
