@@ -74,7 +74,7 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
 
     # Summarize SVD representation
     svd = pd.DataFrame(atac_mod_ad.obsm['X_svd'], index=atac_mod_ad.obs_names)
-    summ_svd = svd.groupby(atac_omod_ad.obs[SEACell_label]).mean()
+    summ_svd = svd.groupby(atac_mod_ad.obs[SEACell_label]).mean()
     atac_meta_ad.obsm['X_svd'] = summ_svd.loc[atac_meta_ad.obs_names, :].values
 
     # ATAC - create metacell anndata
