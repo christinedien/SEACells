@@ -170,7 +170,7 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACell_label='SEACell'
     
     # remove peaks with zero counts
     sc.pp.filter_genes(atac_meta_ad, min_cells=1) 
-    sc.pp.normalize_total(atac_meta_ad)
+    sc.pp.normalize_total(atac_meta_ad, key_added='n_counts')
 
     return atac_meta_ad, rna_meta_ad
 
