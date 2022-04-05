@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="SEACells",
-    version="0.2.0",
+    version="0.3.0",
     author="Pe'er Lab",
     author_email="scp2152@columbia.edu",
     description=" ",
