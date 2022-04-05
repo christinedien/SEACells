@@ -40,21 +40,21 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACells_label='SEACell', n_bins_f
     metacells = metacells[atac_mod_ad.obs[SEACells_label].value_counts()[
         metacells] > 1]
 
-
     print('Generating Metacell matrices...')
     print(' ATAC')
     atac_meta_ad = core.summarize_by_SEACell(atac_mod_ad, SEACells_label=SEACells_label, summarize_layer='X')
     atac_meta_ad = atac_meta_ad[metacells, :]
     # ATAC - Summarize SVD representation 
+
     svd = pd.DataFrame(atac_mod_ad.obsm['X_svd'], index=atac_mod_ad.obs_names)
     summ_svd = svd.groupby(atac_mod_ad.obs[SEACells_label]).mean()
     atac_meta_ad.obsm['X_svd'] = summ_svd.loc[atac_meta_ad.obs_names, :].values
+
 
     # ATAC - Normalize
     sc.pp.filter_genes(atac_meta_ad, min_cells=1)
     _normalize_ad(atac_meta_ad)
     _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
-
 
     # RNA summaries using ATAC SEACells
     print(' RNA')
@@ -86,7 +86,6 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
     atac_mod_ad = atac_ad.copy()
     rna_mod_ad = rna_ad.copy()
     
- 
     # #################################################################################
     # Generate metacell matrices
     # Since the Mapping was made off of the RNA metacells, there may be dupliated ATAC
@@ -121,8 +120,6 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
     # RNA- Normalize 
     _normalize_ad(rna_meta_ad)
     
-
-
     print(' ATAC')
     # ATAC - Summarize by metacells
     # Summary matrix
@@ -146,7 +143,6 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
     _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
     
     return atac_meta_ad, rna_meta_ad
-
 
 
 def _create_ad(summ_matrix):
