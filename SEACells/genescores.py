@@ -72,14 +72,14 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACell_label='SEACell', n_bins_fo
         summ_matrix.loc[m, :] = np.ravel(
             atac_mod_ad[cells, :].layers['TFIDF'].sum(axis=0))
 
+    # ATAC - create metacell anndata
+    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
+    sc.pp.normalize_per_cell(atac_meta_ad)
+
     # Summarize SVD representation
     svd = pd.DataFrame(atac_mod_ad.obsm['X_svd'], index=atac_mod_ad.obs_names)
     summ_svd = svd.groupby(atac_mod_ad.obs[SEACell_label]).mean()
     atac_meta_ad.obsm['X_svd'] = summ_svd.loc[atac_meta_ad.obs_names, :].values
-
-    # ATAC - create metacell anndata
-    atac_meta_ad = _create_ad(summ_matrix, atac_mod_ad, n_bins_for_gc)
-    sc.pp.normalize_per_cell(atac_meta_ad)
 
     print(' RNA')
     # RNA - Normalize
