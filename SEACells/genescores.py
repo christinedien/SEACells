@@ -143,12 +143,8 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
     # ATAC - Normalize
     sc.pp.filter_genes(atac_meta_ad, min_cells=1)
     _normalize_ad(atac_meta_ad)
-    _add_atac_meta_data(atac_meta_ad)
+    _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
     
-    # remove peaks with zero counts
-    sc.pp.filter_genes(atac_meta_ad, min_cells=1) 
-    sc.pp.normalize_total(atac_meta_ad, key_added='n_counts')
-
     return atac_meta_ad, rna_meta_ad
 
 
