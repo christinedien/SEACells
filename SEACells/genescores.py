@@ -52,9 +52,9 @@ def prepare_multiome_anndata(atac_ad, rna_ad, SEACells_label='SEACell', n_bins_f
 
 
     # ATAC - Normalize
+    _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
     sc.pp.filter_genes(atac_meta_ad, min_cells=1)
     _normalize_ad(atac_meta_ad)
-    _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
 
     # RNA summaries using ATAC SEACells
     print(' RNA')
@@ -138,9 +138,9 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
     atac_meta_ad.obs['original_atac'] = mapping['atac'].values
     
     # ATAC - Normalize
+    _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc) 
     sc.pp.filter_genes(atac_meta_ad, min_cells=1)
     _normalize_ad(atac_meta_ad)
-    _add_atac_meta_data(atac_meta_ad, atac_mod_ad, n_bins_for_gc)
     
     return atac_meta_ad, rna_meta_ad
 
@@ -172,10 +172,6 @@ def _add_atac_meta_data(atac_meta_ad, atac_ad, n_bins_for_gc):
                                                  np.linspace(atac_ad.var['log_n_counts'].min(),
                                                              atac_ad.var['log_n_counts'].max(), 
                                                              n_bins_for_gc))
-
-
-
-
 
 def _pyranges_from_strings(pos_list):
     """
