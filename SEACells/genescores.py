@@ -134,7 +134,7 @@ def prepare_integrated_anndata(atac_ad, rna_ad, mapping, SEACells_label='SEACell
 
     # ATAC - create metacell anndata
     atac_meta_ad = _create_ad(summ_matrix)
-    atac_meta_ad.obsm['X_svd'] = meta_svd
+    atac_meta_ad.obsm['X_svd'] = meta_svd.values
     atac_meta_ad.obs['original_atac'] = mapping['atac'].values
     
     # ATAC - Normalize
