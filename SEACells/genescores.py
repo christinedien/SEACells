@@ -1,4 +1,4 @@
-from tqdm import tqdm
+from tqdm.auto import tqdm
 import pyranges as pr
 from sklearn.metrics import pairwise_distances
 from scipy.stats import rankdata

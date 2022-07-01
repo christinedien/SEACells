@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
 
 def determine_metacell_open_peaks(atac_meta_ad, peak_set=None, low_dim_embedding='X_svd', pval_cutoff=1e-2,

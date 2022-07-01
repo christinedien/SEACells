@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import palantir
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 
 from . import build_graph
 
